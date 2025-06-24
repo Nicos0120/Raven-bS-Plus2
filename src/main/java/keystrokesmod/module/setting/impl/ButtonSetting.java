@@ -11,9 +11,8 @@ public class ButtonSetting extends Setting {
     private Runnable method;
     public GroupSetting group;
     private boolean exclusive;
-    private Module parentModule; // 新增父模块引用
+    private Module parentModule;
 
-    // 保留原始构造函数
     public ButtonSetting(String name, boolean isEnabled) {
         super(name);
         this.name = name;
@@ -22,7 +21,6 @@ public class ButtonSetting extends Setting {
         this.parentModule = null;
     }
 
-    // 新增带parentModule的构造函数
     public ButtonSetting(String name, Module parentModule, boolean isEnabled) {
         super(name);
         this.name = name;
@@ -31,7 +29,6 @@ public class ButtonSetting extends Setting {
         this.isMethodButton = false;
     }
 
-    // 保留其他原始构造函数
     public ButtonSetting(GroupSetting group, String name, boolean isEnabled) {
         super(name);
         this.group = group;
@@ -41,7 +38,6 @@ public class ButtonSetting extends Setting {
         this.parentModule = null;
     }
 
-    // 新增带parentModule的分组构造函数
     public ButtonSetting(GroupSetting group, String name, Module parentModule, boolean isEnabled) {
         super(name);
         this.group = group;
@@ -51,7 +47,6 @@ public class ButtonSetting extends Setting {
         this.isMethodButton = false;
     }
 
-    // 原始方法按钮构造函数
     public ButtonSetting(String name, Runnable method) {
         super(name);
         this.name = name;
@@ -61,7 +56,6 @@ public class ButtonSetting extends Setting {
         this.parentModule = null;
     }
 
-    // 新增：获取父模块方法
     public Module getParentModule() {
         return parentModule;
     }
@@ -83,11 +77,10 @@ public class ButtonSetting extends Setting {
     public void toggle() {
         this.isEnabled = !this.isEnabled;
         if (exclusive && isEnabled) {
-            handleExclusiveToggle(); // 调用互斥处理
+            handleExclusiveToggle();
         }
     }
 
-    // 新增：互斥切换处理方法
     private void handleExclusiveToggle() {
         if (parentModule != null) {
             for (Setting setting : parentModule.getSettings()) {
@@ -119,14 +112,14 @@ public class ButtonSetting extends Setting {
             handleExclusiveToggle();
         }
     }
-    // 在ButtonSetting类中添加
+
     public void setExclusive(boolean exclusive) {
         this.exclusive = exclusive;
     }
 
     public void guiButtonToggled(ButtonSetting b) {
         if (b.exclusive && b.isToggled()) {
-            // 关闭其他互斥按钮
+
             for (Setting setting : parentModule.getSettings()) {
                 if (setting instanceof ButtonSetting && setting != b) {
                     ((ButtonSetting) setting).setToggled(false);
@@ -147,7 +140,6 @@ public class ButtonSetting extends Setting {
         }
     }
 
-    // 修复setToggled方法
     public void setToggled(boolean b) {
         if (this.isEnabled != b) {
             this.isEnabled = b;

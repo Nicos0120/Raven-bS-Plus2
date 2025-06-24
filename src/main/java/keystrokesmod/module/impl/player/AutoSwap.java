@@ -10,6 +10,7 @@ public class AutoSwap extends Module {
     public ButtonSetting spoofItem;
     public ButtonSetting swapToGreaterStack;
     public SliderSetting swapAt;
+    public ButtonSetting legit;
 
     public AutoSwap() {
         super("AutoSwap", category.player);
@@ -18,6 +19,7 @@ public class AutoSwap extends Module {
         this.registerSetting(spoofItem = new ButtonSetting("Spoof item", false));
         this.registerSetting(swapToGreaterStack = new ButtonSetting("Swap to greater stack", true));
         this.registerSetting(swapAt = new SliderSetting("Swap at", " blocks", 3, 1, 7, 1));
+        this.registerSetting(legit = new ButtonSetting("Legit", false));
         this.canBeEnabled = false;
     }
 

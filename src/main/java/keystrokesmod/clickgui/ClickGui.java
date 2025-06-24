@@ -50,7 +50,7 @@ public class ClickGui extends GuiScreen {
     public int previousScale;
     private static boolean isNotFirstOpen;
 
-    private String clientName = "Raven bS Plus2";
+    private String clientName = "Raven Plus2+";
     private String clientVersion = "beta";
     private String developer = "Nico";
     private int color = (new Color(255, 192, 220)).getRGB();

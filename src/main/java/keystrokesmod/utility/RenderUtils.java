@@ -32,11 +32,9 @@ import static org.lwjgl.opengl.GL11.*;
 
 public class RenderUtils {
     public static Vec3 to2D(double x, double y, double z) {
-        // 获取渲染管理器和当前视口参数
         RenderManager renderManager = Minecraft.getMinecraft().getRenderManager();
         ScaledResolution sr = new ScaledResolution(Minecraft.getMinecraft());
 
-        // 获取模型视图矩阵和投影矩阵
         FloatBuffer modelView = GLAllocation.createDirectFloatBuffer(16);
         FloatBuffer projection = GLAllocation.createDirectFloatBuffer(16);
         IntBuffer viewport = GLAllocation.createDirectIntBuffer(16);
@@ -45,7 +43,6 @@ public class RenderUtils {
         GL11.glGetFloat(GL11.GL_PROJECTION_MATRIX, projection);
         GL11.glGetInteger(GL11.GL_VIEWPORT, viewport);
 
-        // 将世界坐标转换为屏幕坐标
         FloatBuffer screenCoords = GLAllocation.createDirectFloatBuffer(3);
         boolean result = projectPoint(
                 (float) (x - renderManager.viewerPosX),
@@ -55,7 +52,6 @@ public class RenderUtils {
         );
 
         if (result) {
-            // 调整坐标到GUI比例
             double scaleFactor = sr.getScaleFactor();
             return new Vec3(
                     screenCoords.get(0) / scaleFactor,
@@ -66,7 +62,6 @@ public class RenderUtils {
         return null;
     }
 
-    // 核心投影计算（基于OpenGL gluProject实现）
     private static boolean projectPoint(
             float objx, float objy, float objz,
             FloatBuffer modelView, FloatBuffer projection, IntBuffer viewport,
@@ -75,19 +70,15 @@ public class RenderUtils {
         float[] in = new float[4];
         float[] out = new float[4];
 
-        // 应用模型视图矩阵
         multiplyMatrixVector(modelView, new float[]{objx, objy, objz, 1.0f}, in);
-        // 应用投影矩阵
         multiplyMatrixVector(projection, in, out);
 
         if (out[3] == 0.0) return false;
 
-        // 透视除法
         out[0] /= out[3];
         out[1] /= out[3];
         out[2] /= out[3];
 
-        // 映射到视口
         winCoords.put(0, (out[0] * 0.5f + 0.5f) * viewport.get(2) + viewport.get(0));
         winCoords.put(1, (out[1] * 0.5f + 0.5f) * viewport.get(3) + viewport.get(1));
         winCoords.put(2, (1.0f + out[2]) * 0.5f);
@@ -95,7 +86,6 @@ public class RenderUtils {
         return true;
     }
 
-    // 矩阵乘法辅助方法
     private static void multiplyMatrixVector(FloatBuffer matrix, float[] in, float[] out) {
         for (int i = 0; i < 4; i++) {
             out[i] =
@@ -115,11 +105,9 @@ public class RenderUtils {
     private static final FloatBuffer SCREEN_COORDS = BufferUtils.createFloatBuffer(3);
 
     public static void drawFilledBoundingBox(AxisAlignedBB box, float partialTicks) {
-        // 实现填充方块的OpenGL绘制
     }
 
     public static void drawOutlinedBoundingBox(AxisAlignedBB box, float partialTicks) {
-        // 实现边框的OpenGL绘制
     }
 
     public static void renderBlock(BlockPos blockPos, int color, boolean outline, boolean shade) {

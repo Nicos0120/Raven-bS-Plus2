@@ -73,7 +73,7 @@ public class AntiFireball extends Module {
             return;
         }
         if (fireball != null) {
-            if (ModuleManager.killAura != null && ModuleManager.killAura.isEnabled() && ModuleManager.killAura.blockingServer && ModuleManager.killAura.blinkAutoBlock()) {
+            if (ModuleManager.killAura != null && ModuleManager.killAura.isEnabled() && ModuleManager.killAura.blockingServer && ModuleManager.killAura.autoBlockOverride()) {
                 if (KillAura.target != null) {
                     attack = false;
                     return;

@@ -2,7 +2,6 @@ package keystrokesmod.utility;
 
 import keystrokesmod.event.*;
 import keystrokesmod.module.impl.combat.Velocity;
-import keystrokesmod.module.Module;
 import keystrokesmod.module.impl.movement.Bhop;
 import keystrokesmod.module.impl.movement.LongJump;
 import keystrokesmod.module.impl.render.HUD;
@@ -10,10 +9,11 @@ import keystrokesmod.utility.command.CommandManager;
 import net.minecraft.block.*;
 import net.minecraft.client.Minecraft;
 import keystrokesmod.module.ModuleManager;
-import net.minecraft.client.settings.KeyBinding;
-import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.item.ItemBlock;
+import net.minecraft.item.ItemStack;
 import net.minecraft.network.Packet;
 import net.minecraft.network.play.client.*;
+import net.minecraft.network.play.server.S08PacketPlayerPosLook;
 import net.minecraft.network.play.server.S12PacketEntityVelocity;
 import net.minecraft.network.play.server.S27PacketExplosion;
 import net.minecraft.util.BlockPos;
@@ -23,7 +23,6 @@ import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -40,7 +39,7 @@ public class ModuleUtils {
     public static boolean threwFireball, threwFireballLow;
     public static long MAX_EXPLOSION_DIST_SQ = 10;
     private long FIREBALL_TIMEOUT = 500L, fireballTime = 0;
-    public static int inAirTicks, groundTicks, stillTicks;
+    public static int inAirTicks, groundTicks, stillTicks, rcTick;
     public static int fadeEdge;
     public static double offsetValue = 0.00100012;
     public static boolean isAttacking;
@@ -51,7 +50,6 @@ public class ModuleUtils {
     public static boolean lastTickOnGround, lastTickPos1, lastYDif;
     private boolean thisTickOnGround, thisTickPos1;
     public static boolean firstDamage;
-    private int ft;
 
     public static boolean isBlocked;
 
@@ -70,16 +68,29 @@ public class ModuleUtils {
 
     private boolean ldmg;
 
+    private int placeFrequency, removeFrequency, heldDelay, rcDelay;
+
+    public static boolean worldChange;
+
+
+    //-0.0784000015258789 = ground value
+
+    //§
+
     @SubscribeEvent
     public void onWorldJoin(EntityJoinWorldEvent e) {
+        if (!Utils.nullCheck()) {
+            return;
+        }
         if (e.entity == mc.thePlayer) {
             ModuleManager.disabler.disablerLoaded = false;
             inAirTicks = 0;
+            worldChange = true;
         }
     }
 
-    @SubscribeEvent
-    public void onSendPacketAll(SendAllPacketsEvent e) {
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public void onSendPacketsAll(SendAllPacketsEvent e) {
         if (!Utils.nullCheck()) {
             return;
         }
@@ -107,18 +118,21 @@ public class ModuleUtils {
             if (Objects.equals(String.valueOf(c07.getStatus()), "START_DESTROY_BLOCK")) {
                 isBreaking = true;
             }
-            if (Objects.equals(String.valueOf(c07.getStatus()), "ABORT_DESTROY_BLOCK")) {
+            if (Objects.equals(String.valueOf(c07.getStatus()), "ABORT_DESTROY_BLOCK") || Objects.equals(String.valueOf(c07.getStatus()), "STOP_DESTROY_BLOCK")) {
                 isBreaking = false;
             }
         }
     }
 
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.LOW)
     public void onSendPacket(SendPacketEvent e) {
         if (!Utils.nullCheck()) {
             return;
         }
-        Packet packet = e.getPacket();
+
+        if (e.getPacket() instanceof C08PacketPlayerBlockPlacement) {
+            placeFrequency++;
+        }
 
         if (e.getPacket() instanceof C09PacketHeldItemChange) {
             swapTick = 2;
@@ -136,8 +150,11 @@ public class ModuleUtils {
 
     }
 
+    public static boolean hasTeleported;
+    private int htpt;
+
     @SubscribeEvent
-    public void onReceivePacketAll(ReceiveAllPacketsEvent e) {
+    public void onReceivePacketsAll(ReceiveAllPacketsEvent e) {
         if (!Utils.nullCheck()) {
             return;
         }
@@ -164,11 +181,48 @@ public class ModuleUtils {
 
             }
         }
+        if (e.getPacket() instanceof S08PacketPlayerPosLook) {
+            hasTeleported = true;
+            htpt = 2;
+        }
     }
+
+    private int ft = 0;
 
     @SubscribeEvent
     public void onPostMotion(PostMotionEvent e) {
-
+        if (mc.thePlayer.hurtTime == 9 || mc.thePlayer.hurtTime == 0) {
+            ft = 0;
+        }
+        if (bhopBoostConditions()) {
+            if (mc.thePlayer.hurtTime > 0 && ft == 0 && firstDamage) {
+                double base = Utils.getHorizontalSpeed();
+                if (base <= 0) {
+                    base = 0.01;
+                }
+                Utils.setSpeed(base);
+                ft = -1;
+            }
+        }
+        if (veloBoostConditions()) {
+            if (mc.thePlayer.hurtTime > 0 && ft == 0 && firstDamage) {
+                double added = 0;
+                if (Utils.getHorizontalSpeed() <= Velocity.minExtraSpeed.getInput()) {
+                    added = Velocity.extraSpeedBoost.getInput() / 100;
+                    if (Velocity.reverseDebug.isToggled()) {
+                        Utils.modulePrint("&7[&dR&7] Applied extra boost | Original speed: " + Utils.getHorizontalSpeed());
+                    }
+                }
+                double base = Utils.getHorizontalSpeed();
+                if (base <= 0) {
+                    base = 0.01;
+                }
+                Utils.setSpeed((base * (Velocity.reverseHorizontal.getInput() / 100)) * (1 + added));
+                ft = -1;
+            }
+        }
+        firstDamage = false;
+        worldChange = false;
     }
 
     private boolean bhopBoostConditions() {
@@ -179,7 +233,7 @@ public class ModuleUtils {
     }
 
     private boolean veloBoostConditions() {
-        if (ModuleManager.velocity.isEnabled() && ModuleManager.velocity.velocityModes.getInput() == 2) {
+        if (ModuleManager.velocity.isEnabled() && ModuleManager.velocity.mode.getInput() == 2) {
             return true;
         }
         return false;
@@ -188,34 +242,50 @@ public class ModuleUtils {
     @SubscribeEvent
     public void onPreUpdate(PreUpdateEvent e) {
 
-        if (bhopBoostConditions()) {
-            if (firstDamage && ++ft >= 2) {
-                Utils.setSpeed(Utils.getHorizontalSpeed());
-                firstDamage = false;
-                ft = 0;
+        if (hasTeleported && htpt > 0) {
+            htpt--;
+        }
+        else {
+            htpt = 0;
+            hasTeleported = false;
+        }
+
+        rcTick = Utils.keybinds.isMouseDown(1) ? ++rcTick : 0;
+
+        //Autoswap option "Legit"
+
+        if (placeFrequency > 0) {
+            if (++removeFrequency > 2) {
+                removeFrequency = 0;
+                placeFrequency--;
             }
         }
-        if (veloBoostConditions()) {
-            if (firstDamage && ++ft >= 2) {
-                double added = 0;
-                if (Utils.getHorizontalSpeed() <= Velocity.minExtraSpeed.getInput()) {
-                    added = Velocity.extraSpeedBoost.getInput() / 100;
-                    if (Velocity.reverseDebug.isToggled()) {
-                        Utils.print("&7[&dR&7] Applied extra boost | Original speed: " + Utils.getHorizontalSpeed());
+        else {
+            removeFrequency = 0;
+        }
+        if (!Utils.keybinds.isMouseDown(1)) {
+            if (++rcDelay > 3) {
+                placeFrequency = 0;
+            }
+            heldDelay = 0;
+        }
+        else {
+            rcDelay = 0;
+        }
+        if (holdingBlocks() && rcDelay == 0) {
+            heldDelay++;
+        } else {
+            if (heldDelay > 0) {
+                heldDelay--;
+            }
+            if (rcDelay == 0) {
+                if (heldDelay > 0 && (placeFrequency > 1 || heldDelay > 4)) {
+                    if (getSlot() != -1 && ModuleManager.autoSwap.legit.isToggled()) {
+                        mc.thePlayer.inventory.currentItem = getSlot();
                     }
                 }
-                Utils.setSpeed((Utils.getHorizontalSpeed() * (Velocity.reverseHorizontal.getInput() / 100)) * (1 + added));
-                firstDamage = false;
-                ft = 0;
             }
         }
-
-        //-0.0784000015258789 = ground value
-
-        //§
-
-        double ed = Math.toDegrees(Math.atan2(mc.thePlayer.motionZ, mc.thePlayer.motionX));
-        //Utils.print("" + ed);
 
         if (swapTick > 0) {
             --swapTick;
@@ -230,10 +300,8 @@ public class ModuleUtils {
             if (!hasSlowed) motionVal = motionVal - 0.15;
             if (mc.thePlayer.hurtTime == 0 && !setSlow && !mc.thePlayer.onGround) {
                 setSlow = hasSlowed = true;
-                //Utils.print("Slow " + motionVal);
             }
             didSlow = true;
-            //Utils.print(mc.thePlayer.ticksExisted + " : " + Utils.getHorizontalSpeed());
         }
         if (didSlow && mc.thePlayer.onGround) {
             canSlow = didSlow = false;
@@ -290,6 +358,36 @@ public class ModuleUtils {
                 CommandManager.status.cooldown--;
             }
         }
+    }
+
+    private int getSlot() {
+        int slot = -1;
+        int highestStack = -1;
+        ItemStack heldItem = mc.thePlayer.getHeldItem();
+        for (int i = 0; i < 9; ++i) {
+            final ItemStack itemStack = mc.thePlayer.inventory.mainInventory[i];
+            if (itemStack != null && itemStack.getItem() instanceof ItemBlock && Utils.canBePlaced((ItemBlock) itemStack.getItem()) && itemStack.stackSize > 0) {
+                if (Utils.getBedwarsStatus() == 2 && ((ItemBlock) itemStack.getItem()).getBlock() instanceof BlockTNT) {
+                    continue;
+                }
+                if (heldItem != null && heldItem.getItem() instanceof ItemBlock && Utils.canBePlaced((ItemBlock) heldItem.getItem()) && !itemStack.getItem().getClass().equals(heldItem.getItem().getClass())) {
+                    continue;
+                }
+                if (itemStack.stackSize > highestStack) {
+                    highestStack = itemStack.stackSize;
+                    slot = i;
+                }
+            }
+        }
+        return slot;
+    }
+
+    private boolean holdingBlocks() {
+        ItemStack heldItem = mc.thePlayer.getHeldItem();
+        if (heldItem == null || !(heldItem.getItem() instanceof ItemBlock) || !Utils.canBePlaced((ItemBlock) heldItem.getItem())) {
+            return false;
+        }
+        return true;
     }
 
     private boolean tower() {
@@ -402,19 +500,19 @@ public class ModuleUtils {
         //online
         if (stripped.contains("You tipped ") && stripped.contains(" in") && stripped.contains("!") && CommandManager.status.start) {
             CommandManager.status.start = false;
-            Utils.print("§a " + CommandManager.status.ign + " is online");
+            Utils.modulePrint("§a " + CommandManager.status.ign + " is online");
             e.setCanceled(true);
         }
         if ((stripped.contains("You've already tipped someone in the past hour in") && stripped.contains("! Wait a bit and try again!") || stripped.contains("You've already tipped that person today in ")) && CommandManager.status.start) {
             CommandManager.status.start = false;
-            Utils.print("§a " + CommandManager.status.ign + " is online");
+            Utils.modulePrint("§a " + CommandManager.status.ign + " is online");
             //client.print(util.colorSymbol + "7^ if player recently left the server this may be innacurate (rate limited)");
             e.setCanceled(true);
         }
         //offline
         if (stripped.contains("That player is not online, try another user!") && CommandManager.status.start) {
             CommandManager.status.start = false;
-            Utils.print("§7 " + CommandManager.status.ign + " is offline");
+            Utils.modulePrint("§7 " + CommandManager.status.ign + " is offline");
             e.setCanceled(true);
         }
         //invalid name
@@ -422,14 +520,14 @@ public class ModuleUtils {
             CommandManager.status.cooldown = 0;
             CommandManager.status.start = false;
             CommandManager.status.currentMode = CommandManager.status.lastMode;
-            Utils.print("§7 " + CommandManager.status.ign + " doesn't exist");
+            Utils.modulePrint("§7 " + CommandManager.status.ign + " doesn't exist");
             e.setCanceled(true);
         }
         if (stripped.contains("That's not a valid username!") && CommandManager.status.start) {
             CommandManager.status.cooldown = 0;
             CommandManager.status.start = false;
             CommandManager.status.currentMode = CommandManager.status.lastMode;
-            Utils.print("§binvalid username");
+            Utils.modulePrint("§binvalid username");
             e.setCanceled(true);
         }
         //checking urself
@@ -437,7 +535,7 @@ public class ModuleUtils {
             CommandManager.status.cooldown = 0;
             CommandManager.status.start = false;
             CommandManager.status.currentMode = CommandManager.status.lastMode;
-            Utils.print("§a " + CommandManager.status.ign + " is online");
+            Utils.modulePrint("§a " + CommandManager.status.ign + " is online");
             e.setCanceled(true);
         }
     }

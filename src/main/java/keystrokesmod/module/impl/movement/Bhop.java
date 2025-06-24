@@ -125,10 +125,10 @@ public class Bhop extends Module {
 
                 if (Utils.isMoving()) {
                     if (!Utils.noSlowingBackWithBow() && !ModuleManager.sprint.disableBackwards() && !slowBackwards()) {
-                        Utils.setSpeed((speedModifier - Utils.randomizeDouble(0.0003, 0.0001)) * ModuleUtils.applyFrictionMulti());
+                        Utils.setSpeed((speedModifier) * ModuleUtils.applyFrictionMulti());
                     }
                     else {
-                        Utils.setSpeed((speedModifier - Utils.randomizeDouble(0.0003, 0.0001)) - 0.3);
+                        Utils.setSpeed((speedModifier) - 0.3);
                     }
                     didMove = true;
                 }

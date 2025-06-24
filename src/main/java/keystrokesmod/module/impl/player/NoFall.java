@@ -35,11 +35,14 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class NoFall extends Module {
     public SliderSetting mode;
+    public ButtonSetting initialPosition;
     private SliderSetting minFallDistance;
     private ButtonSetting disableAdventure;
     private ButtonSetting ignoreVoid, voidC;
-    private ButtonSetting hideSound, renderTimer;
-    private String[] modes = new String[]{"Spoof", "NoGround", "Hypixel", "Packet", "CTW", "Prediction", "Blink"};
+    private ButtonSetting hideSound;
+    public ButtonSetting renderTimer;
+    private ButtonSetting disableTp;
+    private String[] modes = new String[]{"Spoof", "NoGround", "A-Fall", "B-Fall", "CTW", "Prediction"};
 
     private int color = new Color(0, 187, 255, 255).getRGB();
 
@@ -50,14 +53,12 @@ public class NoFall extends Module {
 
     private int n;
 
-    private ConcurrentLinkedQueue<Packet> blinkedPackets = new ConcurrentLinkedQueue<>();
-    private ConcurrentLinkedQueue<Packet> regularPackets = new ConcurrentLinkedQueue<>();
-    public boolean isBlinking;
-    public boolean bnFalling, start;
-
-    private int blinkTicks;
+    public boolean bnFalling, blink;
 
     private int y;
+
+    private boolean tp;
+    private double lastX, lastY, lastZ;
 
     public NoFall() {
         super("NoFall", category.player);
@@ -67,6 +68,7 @@ public class NoFall extends Module {
         this.registerSetting(ignoreVoid = new ButtonSetting("Ignore void", false));
         this.registerSetting(voidC = new ButtonSetting("Experimental void check", true));
         this.registerSetting(renderTimer = new ButtonSetting("Render Blink Timer", true));
+        this.registerSetting(disableTp = new ButtonSetting("Disable on teleport", true));
         //this.registerSetting(hideSound = new ButtonSetting("Hide fall damage sound", false));
     }
 
@@ -76,37 +78,22 @@ public class NoFall extends Module {
 
     public void onDisable() {
         Utils.resetTimer();
-
-        if (mc.thePlayer.onGround) {
-            finishBlink();
-        } else {
-            finishBlinkRegular();
-        }
+        blink = false;
+        tp = false;
     }
-
-    /*@SubscribeEvent
-    public void onReceivePacket(ReceivePacketEvent e) {
-        if (e.getPacket() instanceof S29PacketSoundEffect) {
-            S29PacketSoundEffect s29 = (S29PacketSoundEffect) e.getPacket();
-            /*if (!Objects.equals(String.valueOf(s29.getSoundName()), "random.explode")) {
-
-            }*/
-            /*Utils.print("" + s29.getSoundName());
-        }
-    }*/
 
     /*@SubscribeEvent
     public void onSoundEvent(SoundEvent.SoundSourceEvent e) {
         if (e.name.startsWith("game.player.hurt.fall")) {
-            Utils.print("Fall dmg sound");
+
 
         }
     }*/
 
     @SubscribeEvent
     public void onReceivePacket(ReceivePacketEvent e) {
-        if (e.getPacket() instanceof S08PacketPlayerPosLook && n > 0) {
-            n = 34;
+        if (e.getPacket() instanceof S08PacketPlayerPosLook) {
+            if (n > 0) n = 34;
         }
     }
 
@@ -115,31 +102,39 @@ public class NoFall extends Module {
     public void onPreUpdate(PreUpdateEvent e) {
         if (mode.getInput() == 6) {
             if (Utils.fallDist() >= minFallDistance.getInput() && Utils.isEdgeOfBlock() && mc.thePlayer.onGround && !Utils.jumpDown() && !ModuleManager.scaffold.isEnabled && !ModuleManager.bhop.isEnabled() && !LongJump.function) {
-                start = true;
+                blink = true;
                 y = (int) mc.thePlayer.posY;
             }
-            else if (start && !bnFalling && mc.thePlayer.posY > y) {
-                finishBlinkRegular();
+            else if (blink && !bnFalling && mc.thePlayer.posY > y) {
+                blink = false;
             }
-            if (isBlinking) {
-                ++blinkTicks;
-            }
-            if (mc.thePlayer.posY < y && !mc.thePlayer.onGround && start) {
+            if (mc.thePlayer.posY < y && !mc.thePlayer.onGround && blink) {
                 bnFalling = true;
             }
             else if (bnFalling) {
-                finishBlink();
+                blink = false;
             }
-            if (mc.thePlayer.posY <= y - 31 && start) {
-                finishBlinkRegular();
+            if (mc.thePlayer.posY <= y - 31 && blink) {
+                blink = false;
             }
         }
 
 
+        if (mc.thePlayer.posY >= lastY + 3.5D && !(mc.thePlayer.posY >= lastY + 10.0D) && ModuleUtils.hasTeleported && !ModuleUtils.worldChange) {
+            if (disableTp.isToggled()) {
+                Utils.modulePrint("§cMost likely staff checked, disabling NoFall until on ground");
+                tp = true;
+                Utils.ping();
+            }
+        }
+        else if (mc.thePlayer.onGround && tp) {
+            tp = false;
+            Utils.modulePrint("§aNoFall re-enabled");
+        }
 
-
-
-
+        lastX = mc.thePlayer.posX;
+        lastY = mc.thePlayer.posY;
+        lastZ = mc.thePlayer.posZ;
 
         if (reset()) {
             Utils.resetTimer();
@@ -151,10 +146,6 @@ public class NoFall extends Module {
         }
         else if ((double) mc.thePlayer.fallDistance >= minFallDistance.getInput()) {
             isFalling = true;
-        }
-
-        if (ModuleManager.antiVoid.started) {
-            return;
         }
 
 
@@ -239,101 +230,11 @@ public class NoFall extends Module {
                 e.setOnGround(false);
                 break;
             case 6:
-                if (start) {
+                if (blink) {
                     e.setOnGround(true);
                 }
                 break;
         }
-    }
-
-    private void finishBlink() {
-        isBlinking = bnFalling = start = false;
-        blinkTicks = 0;
-        if (!blinkedPackets.isEmpty()) {
-            synchronized (blinkedPackets) {
-                for (Packet packet : blinkedPackets) {
-                    Raven.packetsHandler.handlePacket(packet);
-                    PacketUtils.sendPacketNoEvent(packet);
-                }
-            }
-        }
-        blinkedPackets.clear();
-        regularPackets.clear();
-    }
-
-    private void finishBlinkRegular() {
-        isBlinking = bnFalling = start = false;
-        blinkTicks = 0;
-        if (!regularPackets.isEmpty()) {
-            synchronized (regularPackets) {
-                for (Packet packet : regularPackets) {
-                    Raven.packetsHandler.handlePacket(packet);
-                    PacketUtils.sendPacketNoEvent(packet);
-                }
-            }
-        }
-        regularPackets.clear();
-        blinkedPackets.clear();
-    }
-
-    /*
-        if (mc.thePlayer.onGround) {
-            synchronized (blinkedPackets) {
-                for (Packet packet : blinkedPackets) {
-                    Raven.packetsHandler.handlePacket(packet);
-                    PacketUtils.sendPacketNoEvent(packet);
-                }
-            }
-        } else {
-            synchronized (regularPackets) {
-                for (Packet packet : regularPackets) {
-                    Raven.packetsHandler.handlePacket(packet);
-                    PacketUtils.sendPacketNoEvent(packet);
-                }
-            }
-        }
-        blinkedPackets.clear();
-        regularPackets.clear();
-     */
-
-    @SubscribeEvent
-    public void onRenderTick(TickEvent.RenderTickEvent ev) {
-        if (!Utils.nullCheck() || !renderTimer.isToggled() || mode.getInput() != 6 || blinkTicks == 0 || blinkTicks >= 99999) {
-            return;
-        }
-        if (ev.phase == TickEvent.Phase.END) {
-            if (mc.currentScreen != null) {
-                return;
-            }
-        }
-        Utils.handleTimer(color, blinkTicks);
-    }
-
-    @SubscribeEvent
-    public void onSendPacket(SendPacketEvent e) {
-        if (!Utils.nullCheck()) {
-            return;
-        }
-        Packet packet = e.getPacket();
-        if (packet.getClass().getSimpleName().startsWith("S")) {
-            return;
-        }
-        if (packet instanceof C00PacketLoginStart || packet instanceof C00Handshake) {
-            return;
-        }
-        if (!start) {
-            return;
-        }
-        if (!e.isCanceled()) {
-            isBlinking = true;
-            regularPackets.add(packet);
-            blinkedPackets.add(packet);
-            e.setCanceled(true);
-        }
-    }
-
-    private boolean otherc03(Packet packet) {
-        return ((packet instanceof C03PacketPlayer.C04PacketPlayerPosition) || (packet instanceof C03PacketPlayer.C05PacketPlayerLook) || (packet instanceof C03PacketPlayer.C06PacketPlayerPosLook));
     }
 
     @Override
@@ -377,6 +278,9 @@ public class NoFall extends Module {
         if (voidC.isToggled() && Utils.overVoid() && !dist()) {
             return true;
         }
+        if (tp) {
+            return true;
+        }
         return false;
     }
 
@@ -385,7 +289,7 @@ public class NoFall extends Module {
 
 
     public boolean dist() {
-        double minMotion = 0.1;
+        double minMotion = 0.12;
         int dist1 = 4;
         int dist2 = 6;
         int dist3 = 7;

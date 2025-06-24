@@ -30,7 +30,7 @@ import org.lwjgl.input.Mouse;
 import java.util.Random;
 
 public class NoSlow extends Module {
-    public SliderSetting mode;
+    public static SliderSetting mode;
     public static SliderSetting slowed;
     public static ButtonSetting disableBow;
     public static ButtonSetting disablePotions;

@@ -17,6 +17,8 @@ import java.util.Iterator;
 import java.util.List;
 
 public class Module {
+    public boolean blink;
+    public ButtonSetting renderTimer;
     protected ArrayList<Setting> settings;
     private String moduleName;
     private Module.category moduleCategory;

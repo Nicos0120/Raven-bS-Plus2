@@ -1603,7 +1603,17 @@ public class Utils {
 				&& mc.theWorld.getScoreboard().getObjectiveInDisplaySlot(1).getDisplayName().contains("STARTING");
 	}
 
-    public static class keybinds {
+	public static void modulePrint(String s) {
+	}
+
+	public static float getAngleDifference(float lastEdge2, float fakeYaw2) {
+        return lastEdge2;
+    }
+
+	public static void ping() {
+	}
+
+	public static class keybinds {
 		public static int[] getMousePosition() {
 			return new int[]{Mouse.getX(), Mouse.getY()};
 		}

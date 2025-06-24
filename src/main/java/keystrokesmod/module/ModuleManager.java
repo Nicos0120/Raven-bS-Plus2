@@ -76,6 +76,7 @@ public class ModuleManager {
     public static AntiVoid antiVoid;
     public static Spammer spammer;
     public static AntiDebuff antiDebuff;
+    public static Blink lagRange;
 
     public void register() {
         this.addModule(autoClicker = new AutoClicker());
@@ -162,7 +163,6 @@ public class ModuleManager {
         this.addModule(bedwars = new BedWars());
         this.addModule(fastMine = new FastMine());
         this.addModule(arrows = new Arrows());
-        this.addModule(new JumpReset());
         this.addModule(new Manager());
         this.addModule(new ViewPackets());
         this.addModule(new AutoWho());
